@@ -1,0 +1,278 @@
+// Complete Real Estate Website Database Schema - Prisma MongoDB
+// Based on your workflow requirements
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Users - Both regular users and property owners/admins
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String   @unique
+  phone       String   @unique
+  password    String
+  location    String   // User's current location
+  userType    UserType @default(USER) // USER or ADMIN
+  
+  // Profile
+  avatar      String?
+  isVerified  Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationships
+  properties       Property[] // Properties owned (for admins)
+  cartItems        Cart[]     // Saved/liked properties (for users)
+  contactInquiries ContactInquiry[]
+  searchHistory    SearchHistory[]
+  propertyViews    PropertyView[]
+  
+  @@map("users")
+}
+
+// Properties - Main listings shown on the website
+model Property {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Basic Info (shown in carousel)
+  name            String
+  imageUrl        String   // Primary image for carousel
+  bhk             String   // "1BHK", "2BHK", "3BHK", etc.
+  priceRange      String   // "₹25L - ₹30L" or "₹15,000/month"
+  
+  // Location Details
+  area            String   // Sector 12, MG Road, etc.
+  city            String   // Mumbai, Delhi, etc.
+  state           String   // Maharashtra, Delhi, etc.
+  fullAddress     String   // Complete address for Google Maps
+  latitude        Float?   // For Google Maps integration
+  longitude       Float?   // For Google Maps integration
+  
+  // Property Details (shown in detailed view)
+  images          String[] // Array of all property images
+  type            PropertyType // APARTMENT, HOUSE, VILLA, PLOT, COMMERCIAL
+  listingType     ListingType  // SALE, RENT
+  propertyStatus  PropertyStatus @default(AVAILABLE) //Available , Sold, Rented, etc.
+  bedrooms       Int?     // Number of bedrooms
+  description     String
+  
+  // Key Features
+  propertyArea    Float    // Total area in sq ft
+  size            String   // "1200 sq ft", "2400 sq ft"
+  pricePerSqft    Float    // Rate per square feet
+  dateBuilt       DateTime? // When was it built
+  ratings         Float?   // Property ratings (1-5)
+  negotiablePrice Float?   // Lowest acceptable price
+  
+  // Additional Features
+  amenities       String[] // ["Parking", "Gym", "Swimming Pool"]
+  furnishingType  FurnishingType? // FURNISHED, SEMI_FURNISHED, UNFURNISHED
+  floorNumber     Int?     // Which floor
+  totalFloors     Int?     // Total floors in building
+  facing          Direction? // NORTH, SOUTH, EAST, WEST
+  
+  // Owner Details
+  ownerId         String   @db.ObjectId
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerName       String   // Owner's display name
+  ownerPhone      String   // Owner's contact number
+  ownerEmail      String?  // Owner's email for contact
+  
+  // System Fields
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationships
+  cartItems        Cart[]
+  contactInquiries ContactInquiry[]
+  propertyViews    PropertyView[]
+  featuredProperty FeaturedProperty?
+  
+  @@map("properties")
+}
+
+// Cart - User's saved/liked properties
+model Cart {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId  String   @db.ObjectId
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  addedAt     DateTime @default(now())
+  notes       String?  // User's personal notes about the property
+  isInterested Boolean @default(true) // Still interested or just saved
+  
+  // Prevent duplicate entries
+  @@unique([userId, propertyId])
+  @@map("cart")
+}
+
+// Contact Inquiries - When users contact property owners
+model ContactInquiry {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  propertyId  String   @db.ObjectId
+  property    Property @relation(fields: [propertyId], references: [id])
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  
+  message     String
+  contactType ContactType @default(PHONE) // PHONE, EMAIL, WHATSAPP
+  status      InquiryStatus @default(SENT)
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("contact_inquiries")
+}
+
+// Search History - Track what users are searching for
+model SearchHistory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  userId      String?  @db.ObjectId // Optional - can track anonymous searches
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  searchQuery String
+  filters     Json?    // Store search filters as JSON
+  resultCount Int      // How many results were found
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("search_history")
+}
+
+// Property Views - Track which properties are viewed most
+model PropertyView {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  propertyId  String   @db.ObjectId
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  userId      String?  @db.ObjectId // Optional - can track anonymous views
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  ipAddress   String?  // For tracking unique views
+  userAgent   String?  // Browser info
+  viewedAt    DateTime @default(now())
+  
+  @@map("property_views")
+}
+
+// Featured Properties - Admin can mark properties as featured
+model FeaturedProperty {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  propertyId  String   @unique @db.ObjectId
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  position    Int      @default(0) // Order in featured list
+  isActive    Boolean  @default(true)
+  startDate   DateTime @default(now())
+  endDate     DateTime? // Optional end date for featured status
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("featured_properties")
+}
+
+// Site Settings - Global website settings
+model SiteSettings {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  siteName    String   @default("Real Estate Hub")
+  siteEmail   String?
+  sitePhone   String?
+  address     String?
+  
+  // SEO Settings
+  metaTitle   String?
+  metaDescription String?
+  keywords    String[]
+  
+  // Features Toggle
+  enableRegistration Boolean @default(true)
+  enablePropertyPosting Boolean @default(true)
+  requireVerification Boolean @default(false)
+  
+  // Limits
+  maxImagesPerProperty Int @default(10)
+  maxPropertiesPerUser Int @default(50)
+  
+  updatedAt   DateTime @updatedAt
+  
+  @@map("site_settings")
+}
+
+// Enums - All the fixed choices
+enum UserType {
+  USER  // Regular users who browse and save properties
+  ADMIN // Property owners who can list properties
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  VILLA
+  PLOT
+  COMMERCIAL
+  OFFICE
+  SHOP
+  WAREHOUSE
+}
+
+enum ListingType {
+  SALE
+  RENT
+  LEASE
+  PG // Paying Guest
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+  UNDER_NEGOTIATION
+  TEMPORARILY_UNAVAILABLE
+}
+
+enum FurnishingType {
+  FURNISHED
+  SEMI_FURNISHED
+  UNFURNISHED
+}
+
+enum Direction {
+  NORTH
+  SOUTH
+  EAST
+  WEST
+  NORTH_EAST
+  NORTH_WEST
+  SOUTH_EAST
+  SOUTH_WEST
+}
+
+enum ContactType {
+  PHONE
+  EMAIL
+  WHATSAPP
+  IN_APP_MESSAGE
+}
+
+enum InquiryStatus {
+  SENT
+  READ
+  REPLIED
+  CLOSED
+}
