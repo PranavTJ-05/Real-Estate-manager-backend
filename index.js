@@ -6,7 +6,7 @@ import userRoutes from "./routes/userRoutes.js";
 import {clerkMiddleware} from "@clerk/express";
 import connectDB from "./db/index.js";
 import { serve } from "inngest/express";
-import { inngest, functions } from "./src/inngest"
+import { inngest, functions } from "./inngest/index.js";
 
 dotenv.config();
 

@@ -1,5 +1,5 @@
-import { User } from "@clerk/express";
 import { Inngest } from "inngest";
+import prisma from "../prisma/index.js";
 
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "estate.com" });
@@ -10,9 +10,9 @@ export const saveUserData = inngest.createFunction(
     {event: "clerk/user.created"},
 
     async ({ event }) => {
-        const {id, name, email, phone, password, location, userType, avatar} = event.data;
+        const {id, name, email_addresses, phone, password, location, userType, image_url} = event.data;
         const userData = {
-            _id : id,
+            id : id,
             email : email_addresses[0].email_address,
             name : name,
             phone : phone,
@@ -21,7 +21,7 @@ export const saveUserData = inngest.createFunction(
             userType : userType,
             avatar: image_url
         }
-        await User.create(UserData);
+        await prisma.user.create({data: userData});
     }
 )
 
@@ -32,7 +32,7 @@ export const deleteUserData = inngest.createFunction(
 
     async ({ event }) => {
         const {id} = event.data;
-        await User.findByIdDelete(id);
+        await prisma.user.delete({where: {id}});
     }
 )
 
@@ -42,9 +42,8 @@ export const updateUserData = inngest.createFunction(
     {event: "clerk/user.updated"},
 
     async ({ event }) => {
-        const {id, name, email, phone, password, location, userType, avatar} = event.data;
+        const {id, name, email_addresses, phone, password, location, userType, image_url} = event.data;
         const userData = {
-            _id : id,
             email : email_addresses[0].email_address,
             name : name,
             phone : phone,
@@ -53,7 +52,7 @@ export const updateUserData = inngest.createFunction(
             userType : userType,
             avatar: image_url
         }
-        await User.findByIdAndUpdate(id, userData, { new: true });
+        await prisma.user.update({where: {id}, data: userData});
     }
 )
 
